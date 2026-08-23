@@ -36,7 +36,7 @@ export async function SiteHeader() {
               Become a Seller
             </Link>
 
-            {session?.user && session.user.role === "BUYER" && (
+            {session?.user && (session.user.role === "BUYER" || session.user.role === "VENDOR") && (
               <>
                 <Link href="/account/orders" className="nav-link text-sm">
                   Orders
@@ -94,7 +94,7 @@ export async function SiteHeader() {
             <Link href="/account/wishlist" title="Wishlist" className="relative p-1 text-[var(--color-text-primary)] hover:text-[var(--color-gold)] transition-colors">
               <Heart className="h-6 w-6" />
             </Link>
-            {session?.user && session.user.role === "BUYER" && (
+            {session?.user && (session.user.role === "BUYER" || session.user.role === "VENDOR") && (
               <Link href="/cart" title="Shopping Cart" className="relative p-1 text-[var(--color-text-primary)] hover:text-[var(--color-gold)] transition-colors">
                 <ShoppingCart className="h-6 w-6" />
                 <CartBadge />

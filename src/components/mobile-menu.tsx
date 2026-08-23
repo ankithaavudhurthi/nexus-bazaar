@@ -52,7 +52,7 @@ export default function MobileMenu({ session }: { session: any }) {
                 Become a Seller
               </Link>
 
-              {session?.user && session.user.role === "BUYER" && (
+              {session?.user && (session.user.role === "BUYER" || session.user.role === "VENDOR") && (
                 <>
                   <Link
                     href="/account/orders"

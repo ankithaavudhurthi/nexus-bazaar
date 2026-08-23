@@ -74,6 +74,63 @@ export default async function HomePage() {
           )}
         </section>
       </main>
+
+      {/* Modern, Multi-Column Professional Footer */}
+      <footer className="bg-white border-t border-[var(--color-border)] pt-16 pb-12 px-4 text-[var(--color-text-secondary)]">
+        <div className="mx-auto max-w-7xl grid grid-cols-1 md:grid-cols-3 gap-10 mb-12">
+          
+          {/* Column 1: Brand Info */}
+          <div>
+            <h3 className="text-lg font-bold text-[var(--color-text-primary)] mb-3">Nexus Bazar</h3>
+            <p className="text-sm leading-relaxed">
+              A modern multi-vendor e-commerce marketplace built for high performance and seamless shopping experiences.
+            </p>
+          </div>
+
+          {/* Column 2: Quick Links */}
+          <div>
+            <h4 className="text-sm font-semibold text-[var(--color-text-primary)] uppercase tracking-wider mb-4">Quick Links</h4>
+            <ul className="space-y-2 text-sm">
+              <li><Link href="/products" className="hover:text-[var(--color-gold)] transition-colors">Browse Products</Link></li>
+              <li><Link href="/shops" className="hover:text-[var(--color-gold)] transition-colors">View Shops</Link></li>
+              <li><Link href="/auth/login" className="hover:text-[var(--color-gold)] transition-colors">Sign In</Link></li>
+            </ul>
+          </div>
+
+          {/* Column 3: Corporate & Authorship */}
+          <div>
+            <h4 className="text-sm font-semibold text-[var(--color-text-primary)] uppercase tracking-wider mb-4">Engineering & Company</h4>
+            <p className="text-sm mb-2">
+              Developed by{" "}
+              <a 
+                href="https://www.linkedin.com/in/ankitha-avudhurthi/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-[var(--color-gold)] font-semibold hover:underline"
+              >
+                Ankitha
+              </a>
+            </p>
+            <p className="text-sm">
+              In association with{" "}
+              <a 
+                href="https://agniomega.com/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-[var(--color-text-primary)] font-medium hover:text-[var(--color-gold)] transition-colors underline"
+              >
+                Agni Omega
+              </a>
+            </p>
+          </div>
+
+        </div>
+
+        {/* Bottom Copyright Bar */}
+        <div className="mx-auto max-w-7xl pt-8 border-t border-[var(--color-border)] text-center text-xs">
+          © {new Date().getFullYear()} Nexus Bazar & Agni Omega. All rights reserved.
+        </div>
+      </footer>
     </>
   );
 }
