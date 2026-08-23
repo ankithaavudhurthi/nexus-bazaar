@@ -1,0 +1,496 @@
+// Agni Omega — Prisma schema
+// Postgres locally; same schema points at Supabase Postgres in production —
+// only DATABASE_URL changes.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ────────────────────────────────────────────────────────────
+// AUTH / USERS
+// ────────────────────────────────────────────────────────────
+
+enum UserRole {
+  BUYER
+  VENDOR
+  ADMIN
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  passwordHash  String?
+  emailVerified DateTime?
+  image         String?
+  phone         String?
+  role          UserRole  @default(BUYER)
+  createdAt     DateTime  @default(now())
+
+  accounts       Account[]
+  sessions       Session[]
+
+  vendorProfile  VendorProfile?
+  addresses      Address[]
+  cart           Cart?
+  wishlist       Wishlist?
+  orders         Order[]
+  reviews        Review[]
+  supportTickets SupportTicket[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ────────────────────────────────────────────────────────────
+// VENDORS
+// ────────────────────────────────────────────────────────────
+
+enum VendorStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+model VendorProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  shopName        String
+  shopSlug        String  @unique
+  shopDescription String?
+  logoUrl         String?
+  bannerUrl       String?
+  instagramHandle String?
+  websiteUrl      String?
+
+  businessName    String
+  gstNumber       String?
+  panNumber       String?
+  bankAccountName String
+  bankAccountNo   String
+  bankIFSC        String
+
+  status                 VendorStatus @default(PENDING)
+  rejectionReason        String?
+  commissionRateOverride Float? // null = use platform default
+
+  products     Product[]
+  vendorOrders VendorOrder[]
+  payouts      Payout[]
+
+  approvedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([status])
+}
+
+// ────────────────────────────────────────────────────────────
+// CATALOG
+// ────────────────────────────────────────────────────────────
+
+model Category {
+  id       String     @id @default(cuid())
+  name     String
+  slug     String     @unique
+  parentId String?
+  parent   Category?  @relation("Subcategories", fields: [parentId], references: [id])
+  children Category[] @relation("Subcategories")
+
+  attributes CategoryAttribute[]
+  products   Product[]
+
+  @@index([parentId])
+}
+
+enum AttributeType {
+  TEXT
+  NUMBER
+  SELECT
+}
+
+model CategoryAttribute {
+  id         String        @id @default(cuid())
+  categoryId String
+  category   Category      @relation(fields: [categoryId], references: [id])
+  name       String // "RAM", "Screen size", "Battery"
+  type       AttributeType
+  unit       String? // "GB", "inch", "mAh"
+  options    String[]      @default([]) // for SELECT type
+  required   Boolean       @default(false)
+
+  specs ProductSpec[]
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  OUT_OF_STOCK
+  ARCHIVED
+}
+
+enum CustomizationType {
+  PHOTO
+  TEXT
+  PHOTO_TEXT
+}
+
+model Product {
+  id         String        @id @default(cuid())
+  vendorId   String
+  vendor     VendorProfile @relation(fields: [vendorId], references: [id])
+  categoryId String
+  category   Category      @relation(fields: [categoryId], references: [id])
+
+  name              String
+  slug              String             @unique
+  description       String
+  basePrice         Decimal
+  compareAtPrice    Decimal?
+  sku               String
+  stock             Int                @default(0)
+  status            ProductStatus      @default(DRAFT)
+  isFeatured        Boolean            @default(false) // featured within vendor's own shop
+  isCustomizable    Boolean            @default(false)
+  customizationType CustomizationType?
+
+  avgRating   Float @default(0)
+  reviewCount Int   @default(0)
+
+  images        ProductImage[]
+  specs         ProductSpec[]
+  orderItems    OrderItem[]
+  reviews       Review[]
+  wishlistItems WishlistItem[]
+  cartItems     CartItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([vendorId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([status, createdAt])
+  @@index([vendorId, status])
+  @@index([categoryId, status])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  altText   String?
+  position  Int     @default(0)
+}
+
+model ProductSpec {
+  id          String            @id @default(cuid())
+  productId   String
+  product     Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  attributeId String
+  attribute   CategoryAttribute @relation(fields: [attributeId], references: [id])
+  value       String
+
+  @@unique([productId, attributeId])
+}
+
+// ────────────────────────────────────────────────────────────
+// CART / WISHLIST / ADDRESSES
+// ────────────────────────────────────────────────────────────
+
+model Cart {
+  id     String     @id @default(cuid())
+  userId String     @unique
+  user   User       @relation(fields: [userId], references: [id])
+  items  CartItem[]
+}
+
+model CartItem {
+  id          String  @id @default(cuid())
+  cartId      String
+  cart        Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product @relation(fields: [productId], references: [id])
+  quantity    Int     @default(1)
+  customImage String?
+  customText  String?
+
+  @@unique([cartId, productId])
+}
+
+model Address {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+  label     String // "Home", "Office"
+  line1     String
+  line2     String?
+  city      String
+  state     String
+  pincode   String
+  phone     String
+  isDefault Boolean @default(false)
+
+  orders Order[]
+}
+
+// ────────────────────────────────────────────────────────────
+// ORDERS / COMMISSION / PAYOUTS
+// ────────────────────────────────────────────────────────────
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model Order {
+  id          String  @id @default(cuid())
+  orderNumber String  @unique
+  buyerId     String
+  buyer       User    @relation(fields: [buyerId], references: [id])
+  addressId   String
+  address     Address @relation(fields: [addressId], references: [id])
+
+  subtotal       Decimal
+  taxAmount      Decimal @default(0)
+  shippingTotal  Decimal @default(0)
+  total          Decimal
+
+  paymentStatus   PaymentStatus @default(PENDING)
+  paymentMethod   String? @default("COD")
+  razorpayOrderId   String? @unique
+  razorpayPaymentId String?
+
+  vendorOrders VendorOrder[]
+  createdAt    DateTime      @default(now())
+
+  @@index([buyerId])
+}
+
+enum FulfillmentStatus {
+  PENDING
+  PACKED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PayoutStatus {
+  UNPAID
+  PROCESSING
+  PAID
+}
+
+model VendorOrder {
+  id       String        @id @default(cuid())
+  orderId  String
+  order    Order         @relation(fields: [orderId], references: [id])
+  vendorId String
+  vendor   VendorProfile @relation(fields: [vendorId], references: [id])
+
+  subtotal         Decimal
+  commissionRate   Float // snapshot of rate at time of sale
+  commissionAmount Decimal
+  vendorEarning    Decimal // subtotal - commissionAmount
+
+  fulfillmentStatus FulfillmentStatus @default(PENDING)
+  trackingCarrier   String?
+  trackingNumber    String?
+  shippedAt         DateTime?
+  deliveredAt       DateTime?
+
+  payoutStatus PayoutStatus @default(UNPAID)
+  payoutId     String?
+  payout       Payout?      @relation(fields: [payoutId], references: [id])
+
+  items          OrderItem[]
+  refundRequests RefundRequest[]
+
+  createdAt DateTime @default(now())
+
+  @@index([vendorId])
+  @@index([fulfillmentStatus])
+  @@index([payoutStatus])
+}
+
+model OrderItem {
+  id            String      @id @default(cuid())
+  vendorOrderId String
+  vendorOrder   VendorOrder @relation(fields: [vendorOrderId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id])
+
+  // snapshot at time of purchase — product data can change later, the order must not
+  productName  String
+  productImage String
+  unitPrice    Decimal
+  quantity     Int
+  lineTotal    Decimal
+  customImage  String?
+  customText   String?
+
+  reviews Review[]
+}
+
+model Payout {
+  id            String        @id @default(cuid())
+  vendorId      String
+  vendor        VendorProfile @relation(fields: [vendorId], references: [id])
+  totalAmount   Decimal
+  status        PayoutStatus  @default(UNPAID)
+  processedAt   DateTime?
+  processedBy   String? // admin user id
+  referenceNote String?
+  vendorOrders  VendorOrder[]
+  createdAt     DateTime      @default(now())
+}
+
+// ────────────────────────────────────────────────────────────
+// REVIEWS / WISHLIST
+// ────────────────────────────────────────────────────────────
+
+model Review {
+  id          String     @id @default(cuid())
+  productId   String
+  product     Product    @relation(fields: [productId], references: [id])
+  buyerId     String
+  buyer       User       @relation(fields: [buyerId], references: [id])
+  orderItemId String? // present = verified purchase
+  orderItem   OrderItem? @relation(fields: [orderItemId], references: [id])
+
+  rating      Int
+  title       String?
+  body        String
+  images      String[] @default([])
+  vendorReply String?
+
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+model Wishlist {
+  id     String         @id @default(cuid())
+  userId String         @unique
+  user   User           @relation(fields: [userId], references: [id])
+  items  WishlistItem[]
+}
+
+model WishlistItem {
+  id         String   @id @default(cuid())
+  wishlistId String
+  wishlist   Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+
+  @@unique([wishlistId, productId])
+}
+
+// ────────────────────────────────────────────────────────────
+// SUPPORT / REFUNDS / PLATFORM
+// ────────────────────────────────────────────────────────────
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model SupportTicket {
+  id       String          @id @default(cuid())
+  userId   String
+  user     User            @relation(fields: [userId], references: [id])
+  subject  String
+  status   TicketStatus    @default(OPEN)
+  priority String          @default("normal")
+  messages TicketMessage[]
+  createdAt DateTime       @default(now())
+}
+
+model TicketMessage {
+  id        String        @id @default(cuid())
+  ticketId  String
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderId  String
+  message   String
+  createdAt DateTime      @default(now())
+}
+
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  REFUNDED
+}
+
+model RefundRequest {
+  id            String       @id @default(cuid())
+  vendorOrderId String
+  vendorOrder   VendorOrder  @relation(fields: [vendorOrderId], references: [id])
+  buyerId       String
+  reason        String
+  status        RefundStatus @default(REQUESTED)
+  amount        Decimal
+  requestedAt   DateTime     @default(now())
+  resolvedAt    DateTime?
+  resolvedBy    String?
+}
+
+model PlatformSettings {
+  id                    String @id @default("singleton")
+  defaultCommissionRate Float  @default(10)
+  taxRate               Float  @default(18)
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  adminId    String
+  action     String
+  targetType String
+  targetId   String
+  detail     String?
+  createdAt  DateTime @default(now())
+}
